@@ -72,7 +72,7 @@ const pluginHandler = async (option) => {
         }
         const regex = new RegExp(imageArray[position], 'g')
         if (!currrentImageObj.localImagePath) {
-          await downloadImg(imageArray[index], itemImagePath)
+          await downloadImg(imageArray[position], itemImagePath)
           let remoteImageUrl = ''
           if (option.config &&option.config.uploadUrl && option.config.uploadUrl !== 'undefined') {
             const uploadRes = await uploadCallbackData(itemImagePath,`imgcook-cli/${tempImages}/`,option.config)
