@@ -11,7 +11,7 @@ describe('index.js', () => {
       dslId: 41,
       generator: [],
       plugin: [],
-      uploadUrl: 'http://10.102.40.97:8090/upload/image',
+      uploadUrl: '',
       value: '17679',
     },
   }
