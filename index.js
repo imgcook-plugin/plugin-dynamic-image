@@ -2,7 +2,7 @@ const fs = require('fs')
 const { unique, downloadImg } = require('@imgcook/cli-utils')
 const chalk = require('chalk')
 const upload = require('./lib/upload')
-const uploadObj = new upload()
+const uploadInstance = new upload()
 
 /**
  * 上传结果数据
@@ -12,9 +12,8 @@ const uploadObj = new upload()
  */
 const uploadCallbackData = (file, filePath, option) => {
   return new Promise((resolve) => {
-    uploadObj.uploadUrl = option.uploadUrl
-    uploadObj
-      .fetchUpload(file, { filepath: filePath })
+    uploadInstance.uploadUrl = option.uploadUrl
+    uploadInstance.fetchUpload(file)
       .then((res) => {
         resolve(res.data)
       })
@@ -27,15 +26,14 @@ const uploadCallbackData = (file, filePath, option) => {
 }
 
 /**
- * @param option: { data, filePath, config }
- * - data: module and generate code Data
- * - filePath: Pull file storage directory
- * - config: cli config
+ * 组件逻辑处理
+ * @param {*} option 
+ * @returns 
  */
-const pluginHandler = async (options) => {
+const pluginHandler = async (option) => {
   let imageArray = []
-  let { data } = options
-  const { filePath, config } = options
+  let { data } = option
+  const { filePath, config } = option
   if (!data.code) {
     return null
   }
@@ -47,18 +45,13 @@ const pluginHandler = async (options) => {
   const panelDisplay = data.code.panelDisplay || []
   for (const item of panelDisplay) {
     let fileValue = item.panelValue
-    console.log('fileValue>>>>' + fileValue)
-    const tempImages = `${(
-      new Date().getTime() + Math.floor(Math.random() * 10000)
-    ).toString(30)}`
-    imageArray = fileValue.match(
-      /(https?):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](\.png|\.jpg)/g
-    )
+    const tempImages = `${(new Date().getTime() + Math.floor(Math.random() * 10000)).toString(30)}`
+    imageArray = fileValue.match(/(https?):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](\.png|\.jpg)/g)
     if (imageArray && imageArray.length > 0) {
       imageArray = unique(imageArray)
       const imagePath = `${filePath}/images`
       let imageObjects = []
-      const imageRc = `${imagePath}/.imagerc`
+      const imageRc = `${imagePath}/.imagercdata`
       if (fs.existsSync(imageRc)) {
         let imageConfig = fs.readFileSync(imageRc, 'utf-8')
         imageObjects = JSON.parse(imageConfig) || []
@@ -73,38 +66,31 @@ const pluginHandler = async (options) => {
         const itemImagePath = `${imagePath}/${imageName}`
         let currrentImageObj = {}
         for (const imageItem of imageObjects) {
-          if (imageItem.imgUrl === imageArray[position]) {
+          if (imageItem.aliImageUrl === imageArray[position]) {
             currrentImageObj = imageItem
           }
         }
         const regex = new RegExp(imageArray[position], 'g')
-        if (!currrentImageObj.imgPath) {
+        if (!currrentImageObj.localImagePath) {
           await downloadImg(imageArray[index], itemImagePath)
           let remoteImageUrl = ''
-          if (config && config.uploadUrl && config.uploadUrl !== 'undefined') {
-            const uploadRes = await uploadCallbackData(
-              itemImagePath,
-              `imgcook-cli/${tempImages}/`,
-              config
-            )
+          if (option.config &&option.config.uploadUrl && option.config.uploadUrl !== 'undefined') {
+            const uploadRes = await uploadCallbackData(itemImagePath,`imgcook-cli/${tempImages}/`,option.config)
             fileValue = fileValue.replace(regex, uploadRes.url)
             remoteImageUrl = uploadRes.url
           } else {
             fileValue = fileValue.replace(regex, `./images/${imageName}`)
           }
           imageObjects.push({
-            remoteImageUrl,
-            imgUrl: imageArray[position],
-            imagePath: `./images/${imageName}`,
+            imageUrl: remoteImageUrl,
+            aliImageUrl: imageArray[position],
+            localImagePath: `./images/${imageName}`,
           })
         } else {
-          if (config && config.uploadUrl && config.uploadUrl !== 'undefined') {
-            fileValue = fileValue.replace(
-              regex,
-              currrentImageObj.remoteImageUrl
-            )
+          if (option.config && option.config.uploadUrl && option.config.uploadUrl !== 'undefined') {
+            fileValue = fileValue.replace(regex, currrentImageObj.imageUrl)
           } else {
-            fileValue = fileValue.replace(regex, currrentImageObj.imgPath)
+            fileValue = fileValue.replace(regex,currrentImageObj.localImagePath)
           }
         }
       }
