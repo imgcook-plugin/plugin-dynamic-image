@@ -5,12 +5,17 @@ const upload = require('./lib/upload')
 const uploadInstance = new upload()
 
 /**
+ * 图片url正则规则
+ */
+const imageRegex =  /(https?):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](\.png|\.jpg)/g
+
+/**
  * 上传结果数据
  * @param {*} file 文件
  * @param {*} filePath 文件路径
  * @param {*} option 配置选项
  */
-const uploadCallbackData = (file, filePath, option) => {
+const uploadCallbackData = (file, option) => {
   return new Promise((resolve) => {
     uploadInstance.uploadUrl = option.uploadUrl
     uploadInstance.fetchUpload(file)
@@ -42,16 +47,28 @@ const pluginHandler = async (option) => {
   }
   let index = 0
   const moduleData = data.moduleData
+  if (moduleData.cover && imageRegex.test(moduleData.cover)) {
+    const coverImagePath = `${filePath}/cover`
+    if (!fs.existsSync(coverImagePath)) {
+      fs.mkdirSync(coverImagePath)
+    }
+    let coverSuffix = moduleData.cover.split('.')
+    coverSuffix = coverSuffix[coverSuffix.length - 1]
+    const coverImageName = `cover_${moduleData.id}.${coverSuffix}`
+    const converItemImagePath = `${coverImagePath}/${coverImageName}`
+    if (!fs.existsSync(converItemImagePath)) {
+      downloadImg(moduleData.cover,converItemImagePath)
+    }
+  }
   const panelDisplay = data.code.panelDisplay || []
   for (const item of panelDisplay) {
     let fileValue = item.panelValue
-    const tempImages = `${(new Date().getTime() + Math.floor(Math.random() * 10000)).toString(30)}`
-    imageArray = fileValue.match(/(https?):\/\/[-A-Za-z0-9+&@#/%?=~_|!:,.;]+[-A-Za-z0-9+&@#/%=~_|](\.png|\.jpg)/g)
+    imageArray = fileValue.match(imageRegex)
     if (imageArray && imageArray.length > 0) {
       imageArray = unique(imageArray)
       const imagePath = `${filePath}/images`
       let imageObjects = []
-      const imageRc = `${imagePath}/.imagercdata`
+      const imageRc = `${imagePath}/.imagesrc`
       if (fs.existsSync(imageRc)) {
         let imageConfig = fs.readFileSync(imageRc, 'utf-8')
         imageObjects = JSON.parse(imageConfig) || []
@@ -75,9 +92,11 @@ const pluginHandler = async (option) => {
           await downloadImg(imageArray[position], itemImagePath)
           let remoteImageUrl = ''
           if (option.config &&option.config.uploadUrl && option.config.uploadUrl !== 'undefined') {
-            const uploadRes = await uploadCallbackData(itemImagePath,`imgcook-cli/${tempImages}/`,option.config)
-            fileValue = fileValue.replace(regex, uploadRes.url)
-            remoteImageUrl = uploadRes.url
+            const uploadRes = await uploadCallbackData(itemImagePath,option.config) || {}
+            if (uploadRes.url) {
+              fileValue = fileValue.replace(regex, uploadRes.url)
+              remoteImageUrl = uploadRes.url
+            }
           } else {
             fileValue = fileValue.replace(regex, `./images/${imageName}`)
           }
